@@ -11,7 +11,8 @@ ifeq ($(UNAME), Linux)
 EXE += daemon-binaries
 endif
 
-all: $(EXE) lib
+# all: $(EXE) lib ORIGINAL CODE
+all: lib
 
 lib: libPCM.a
 
@@ -49,7 +50,7 @@ LIB= -lpthread -lc++
 CXXFLAGS += -std=c++11
 endif
 
-COMMON_OBJS = msr.o cpucounters.o pci.o mmio.o client_bw.o utils.o
+COMMON_OBJS = msr.o cpucounters.o pci.o mmio.o client_bw.o utils.o pcm_c_api.o
 EXE_OBJS = $(EXE:.x=.o)
 OBJS = $(COMMON_OBJS) $(EXE_OBJS)
 
