@@ -14,6 +14,16 @@ EXE += daemon-binaries
 endif
 
 CXXFLAGS += -Wall -g -O3 -Wno-unknown-pragmas -std=c++11
+# all: $(EXE) lib ORIGINAL CODE
+all: lib
+
+lib: libPCM.a
+
+daemon-binaries:
+	make -C daemon/daemon/Debug
+	make -C daemon/client/Debug
+
+klocwork: $(EXE)
 
 # uncomment if your Linux kernel supports access to /dev/mem from user space
 # CXXFLAGS += -DPCM_USE_PCI_MM_LINUX
