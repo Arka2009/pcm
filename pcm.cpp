@@ -494,8 +494,10 @@ void print_basic_metrics_csv_semicolons(const PCM * m)
 }
 
 void print_csv_header(PCM * m,
+    const std::bitset<MAX_CORES> & ycores,
     const int cpu_model,
     const bool show_core_output,
+    const bool show_partial_core_output,
     const bool show_socket_output,
     const bool show_system_output
     )
@@ -629,6 +631,9 @@ void print_csv_header(PCM * m,
     {
         for (uint32 i = 0; i < m->getNumCores(); ++i)
         {
+            if (show_partial_core_output && ycores.test(i) == false)
+                continue;
+
             cout << "Core" << i << " (Socket" << setw(2) << m->getSocketId(i) << ")";
             print_basic_metrics_csv_semicolons(m);
             if (m->L3CacheOccupancyMetricAvailable())
@@ -764,6 +769,9 @@ void print_csv_header(PCM * m,
     {
         for (uint32 i = 0; i < m->getNumCores(); ++i)
         {
+            if (show_partial_core_output && ycores.test(i) == false)
+                continue;
+
             print_basic_metrics_csv_header(m);
             if (m->L3CacheOccupancyMetricAvailable())
                 cout << "L3OCC;";
@@ -822,10 +830,12 @@ void print_csv(PCM * m,
     const std::vector<CoreCounterState> & cstates2,
     const std::vector<SocketCounterState> & sktstate1,
     const std::vector<SocketCounterState> & sktstate2,
+    const std::bitset<MAX_CORES> & ycores,
     const SystemCounterState& sstate1,
     const SystemCounterState& sstate2,
     const int cpu_model,
     const bool show_core_output,
+    const bool show_partial_core_output,
     const bool show_socket_output,
     const bool show_system_output
     )
@@ -974,6 +984,9 @@ void print_csv(PCM * m,
     {
         for (uint32 i = 0; i < m->getNumCores(); ++i)
         {
+            if (show_partial_core_output && ycores.test(i) == false)
+                continue;
+
             print_basic_metrics_csv(m, cstates1[i], cstates2[i], false);
             print_other_metrics_csv(m, cstates1[i], cstates2[i]);
             cout << ';';
@@ -1253,18 +1266,13 @@ int main(int argc, char * argv[])
     else {
         m->setBlocked(false);
     }
+    // in case delay is not provided in command line => set default
+    if (delay <= 0.0) delay = PCM_DELAY_DEFAULT;
+    // cerr << "DEBUG: Delay: " << delay << " seconds. Blocked: " << m->isBlocked() << endl;
 
     if (csv_output) {
-        print_csv_header(m, cpu_model, show_core_output, show_socket_output, show_system_output);
-        if (delay <= 0.0) delay = PCM_DELAY_DEFAULT;
+        print_csv_header(m, ycores, cpu_model, show_core_output, show_partial_core_output, show_socket_output, show_system_output);
     }
-    else {
-        // for non-CSV mode delay < 1.0 does not make a lot of practical sense:
-        // hard to read from the screen, or
-        // in case delay is not provided in command line => set default
-        if (((delay<1.0) && (delay>0.0)) || (delay <= 0.0)) delay = PCM_DELAY_DEFAULT;
-    }
-    // cerr << "DEBUG: Delay: " << delay << " seconds. Blocked: " << m->isBlocked() << endl;
 
     m->getAllCounterStates(sstate1, sktstate1, cstates1);
 
@@ -1310,8 +1318,8 @@ int main(int argc, char * argv[])
         m->getAllCounterStates(sstate2, sktstate2, cstates2);
 
         if (csv_output)
-            print_csv(m, cstates1, cstates2, sktstate1, sktstate2, sstate1, sstate2,
-            cpu_model, show_core_output, show_socket_output, show_system_output);
+            print_csv(m, cstates1, cstates2, sktstate1, sktstate2, ycores, sstate1, sstate2,
+            cpu_model, show_core_output, show_partial_core_output, show_socket_output, show_system_output);
         else
             print_output(m, cstates1, cstates2, sktstate1, sktstate2, ycores, sstate1, sstate2,
             cpu_model, show_core_output, show_partial_core_output, show_socket_output, show_system_output);
