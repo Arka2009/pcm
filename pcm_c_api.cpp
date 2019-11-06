@@ -7,7 +7,7 @@
 int init_pcm(void** pcm, host_params2_t *hp2) {
     PCM *m = PCM::getInstance();
     if (m->program() != PCM::Success) {
-        std::cerr<<"Could not initialize PCM";
+        std::cerr<<"Could not initialize PCM"<<std::endl;
         return -1;
     }
     *pcm = static_cast<void*>(m);
