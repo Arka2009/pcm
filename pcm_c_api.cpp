@@ -6,8 +6,10 @@
 
 int init_pcm(void** pcm, host_params2_t *hp2) {
     PCM *m = PCM::getInstance();
-    if (m->program() != PCM::Success) {
-        std::cerr<<"Could not initialize PCM"<<std::endl;
+    m->cleanup();
+    PCM::ErrorCode ret = m->program();
+    if (ret != PCM::Success) {
+        std::cerr<<"Could not initialize PCM : "<<ret<<std::endl;
         return -1;
     }
     *pcm = static_cast<void*>(m);
@@ -74,8 +76,8 @@ double get_bytes_txn_MC(const void* before, const void* after) {
     const SystemCounterState *before_sstate = static_cast<const SystemCounterState*>(before);
     const SystemCounterState *after_sstate = static_cast<const SystemCounterState*>(after);
     double r1 = getBytesReadFromMC(*before_sstate,*after_sstate);
-    double r2 = getBytesReadFromMC(*before_sstate,*after_sstate);
-    return r1+r2;
+    double r2 = getBytesWrittenToMC(*before_sstate,*after_sstate);
+    return (r1+r2)/(1024.0 * 1024.0);
 }
 
 
