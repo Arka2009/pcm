@@ -26,7 +26,7 @@ double get_L3_hit_ratio(const void* before, const void* after);
 double get_L3_occupancy(const void* now);
 double get_L2_hit_ratio(const void* before, const void* after); /* Doesn't work on Taurus for some reasons */
 double get_avg_frequency(const void* before, const void* after);
-double get_bytes_txn_MC(const void* before, const void* after);
+double get_MBytes_txn_MC(const void* before, const void* after);
 double get_exec_usage(const void* before, const void* after);
 int32_t get_thermal_headroom(const void* current);
 

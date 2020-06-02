@@ -13,8 +13,7 @@ EXE += daemon-binaries
 endif
 
 CXXFLAGS += -Wall -g -O3 -Wno-unknown-pragmas -std=c++11
-# all: $(EXE) lib ORIGINAL CODE
-all: lib
+all: $(EXE) lib  #ORIGINAL CODE
 
 lib: libPCM.a
 

@@ -72,7 +72,7 @@ double get_L2_hit_ratio(const void* before, const void* after) {
     return r;
 }
 
-double get_bytes_txn_MC(const void* before, const void* after) {
+double get_MBytes_txn_MC(const void* before, const void* after) {
     const SystemCounterState *before_sstate = static_cast<const SystemCounterState*>(before);
     const SystemCounterState *after_sstate = static_cast<const SystemCounterState*>(after);
     double r1 = getBytesReadFromMC(*before_sstate,*after_sstate);
