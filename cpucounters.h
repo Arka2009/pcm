@@ -61,21 +61,26 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 #include <unistd.h>
 #endif
 
-class SystemCounterState;
-class SocketCounterState;
-class CoreCounterState;
-class BasicCounterState;
-class ServerUncorePowerState;
-class PCM;
-class CoreTaskQueue;
-class SystemRoot;
-
 #ifdef _MSC_VER
 #if _MSC_VER>= 1600
 #include <intrin.h>
 #endif
+#endif
+
+namespace pcm {
+
+#ifdef _MSC_VER
 void PCM_API restrictDriverAccess(LPCWSTR path);
 #endif
+
+class SystemCounterState;
+class SocketCounterState;
+class CoreCounterState;
+class BasicCounterState;
+class ServerUncoreCounterState;
+class PCM;
+class CoreTaskQueue;
+class SystemRoot;
 
 /*
         CPU performance monitoring routines
@@ -112,10 +117,12 @@ public:
         offset(offset_)
     {
     }
-    void operator = (uint64 /*val*/) override
+    void operator = (uint64 val) override
     {
-        std::cerr << "PCICFGRegister64 write operation is not supported\n";
-        throw std::exception();
+        cvt_ds cvt;
+        cvt.ui64 = val;
+        handle->write32(offset, cvt.ui32.low);
+        handle->write32(offset + sizeof(uint32), cvt.ui32.high);
     }
     operator uint64 ()  override
     {
@@ -298,18 +305,20 @@ class ServerPCICFGUncore
     UncorePMUVector imcPMUs;
     UncorePMUVector edcPMUs;
     UncorePMUVector xpiPMUs;
+    UncorePMUVector m3upiPMUs;
     UncorePMUVector m2mPMUs;
     UncorePMUVector haPMUs;
-    std::vector<UncorePMUVector*> allPMUs{ &imcPMUs, &edcPMUs, &xpiPMUs, &m2mPMUs, &haPMUs };
+    std::vector<UncorePMUVector*> allPMUs{ &imcPMUs, &edcPMUs, &xpiPMUs, &m3upiPMUs , &m2mPMUs, &haPMUs };
     std::vector<uint64> qpi_speed;
     std::vector<uint32> num_imc_channels; // number of memory channels in each memory controller
     std::vector<std::pair<uint32, uint32> > XPIRegisterLocation; // (device, function)
+    std::vector<std::pair<uint32, uint32> > M3UPIRegisterLocation; // (device, function)
     std::vector<std::vector< std::pair<uint32, uint32> > > MCRegisterLocation; // MCRegisterLocation[controller]: (device, function)
     std::vector<std::pair<uint32, uint32> > EDCRegisterLocation; // EDCRegisterLocation: (device, function)
     std::vector<std::pair<uint32, uint32> > M2MRegisterLocation; // M2MRegisterLocation: (device, function)
     std::vector<std::pair<uint32, uint32> > HARegisterLocation;  // HARegisterLocation: (device, function)
 
-    static PCM_Util::Mutex socket2busMutex;
+    static Mutex socket2busMutex;
     static std::vector<std::pair<uint32, uint32> > socket2iMCbus;
     static std::vector<std::pair<uint32, uint32> > socket2UPIbus;
     static std::vector<std::pair<uint32, uint32> > socket2M2Mbus;
@@ -321,10 +330,12 @@ class ServerPCICFGUncore
     PciHandleType * createIntelPerfMonDevice(uint32 groupnr, int32 bus, uint32 dev, uint32 func, bool checkVendor = false);
     void programIMC(const uint32 * MCCntConfig);
     void programEDC(const uint32 * EDCCntConfig);
+    void programM2M(const uint64 * M2MCntConfig);
     void programM2M();
     void programHA(const uint32 * config);
     void programHA();
     void programXPI(const uint32 * XPICntConfig);
+    void programM3UPI(const uint32* M3UPICntConfig);
     typedef std::pair<size_t, std::vector<uint64 *> > MemTestParam;
     void initMemTest(MemTestParam & param);
     void doMemTest(const MemTestParam & param);
@@ -335,7 +346,7 @@ class ServerPCICFGUncore
     void initDirect(uint32 socket_, const PCM * pcm);
     void initPerf(uint32 socket_, const PCM * pcm);
     void initBuses(uint32 socket_, const PCM * pcm);
-    void initRegisterLocations();
+    void initRegisterLocations(const PCM * pcm);
     uint64 getPMUCounter(std::vector<UncorePMU> & pmu, const uint32 id, const uint32 counter);
 
 public:
@@ -438,7 +449,10 @@ public:
     //! \param port port number
     //! \param counter counter number
     uint64 getQPILLCounter(uint32 port, uint32 counter);
-
+    //! \brief Direct read of M3UPI PMU counter (counter meaning depends on the programming: power/performance/etc)
+    //! \param port port number
+    //! \param counter counter number
+    uint64 getM3UPICounter(uint32 port, uint32 counter);
     //! \brief Direct read of M2M counter
     //! \param box box ID/number
     //! \param counter counter number
@@ -500,15 +514,6 @@ typedef std::vector<uint64> eventGroup_t;
 
 class PerfVirtualControlRegister;
 
-#ifndef HACK_TO_REMOVE_DUPLICATE_ERROR
-template class PCM_API std::allocator<TopologyEntry>;
-template class PCM_API std::vector<TopologyEntry>;
-template class PCM_API std::allocator<CounterWidthExtender *>;
-template class PCM_API std::vector<CounterWidthExtender *>;
-template class PCM_API std::allocator<uint32>;
-template class PCM_API std::vector<uint32>;
-template class PCM_API std::allocator<char>;
-#endif
 /*!
         \brief CPU Performance Monitor
 
@@ -523,6 +528,7 @@ class PCM_API PCM
     friend class ServerUncore;
     friend class PerfVirtualControlRegister;
     friend class Aggregator;
+    friend class ServerPCICFGUncore;
     PCM();     // forbidden to call directly because it is a singleton
 
     int32 cpu_family;
@@ -856,7 +862,7 @@ private:
     void readAndAggregatePackageCStateResidencies(std::shared_ptr<SafeMsrHandle> msr, CounterStateType & result);
     void readQPICounters(SystemCounterState & counterState);
     void reportQPISpeed() const;
-    void readCoreCounterConfig();
+    void readCoreCounterConfig(const bool complainAboutMSR = false);
     void readCPUMicrocodeLevel();
 
     uint64 CX_MSR_PMON_CTRY(uint32 Cbo, uint32 Ctr) const;
@@ -864,22 +870,49 @@ private:
     uint64 CX_MSR_PMON_BOX_FILTER1(uint32 Cbo) const;
     uint64 CX_MSR_PMON_CTLY(uint32 Cbo, uint32 Ctl) const;
     uint64 CX_MSR_PMON_BOX_CTL(uint32 Cbo) const;
-    uint32 getMaxNumOfCBoxes() const;
     void programCboOpcodeFilter(const uint32 opc0, UncorePMU & pmu, const uint32 nc_, const uint32 opc1, const uint32 loc, const uint32 rem);
     void initLLCReadMissLatencyEvents(uint64 * events, uint32 & opCode);
     void initCHARequestEvents(uint64 * events);
     void programCbo();
     uint64 getCBOCounterState(const uint32 socket, const uint32 ctr_);
+    template <class Iterator>
+    static void program(UncorePMU& pmu, const Iterator& eventsBegin, const Iterator& eventsEnd, const uint32 extra)
+    {
+        if (!eventsBegin) return;
+        Iterator curEvent = eventsBegin;
+        for (int c = 0; curEvent != eventsEnd; ++c, ++curEvent)
+        {
+            *pmu.counterControl[c] = MC_CH_PCI_PMON_CTL_EN;
+            *pmu.counterControl[c] = MC_CH_PCI_PMON_CTL_EN | *curEvent;
+        }
+        if (extra)
+        {
+            pmu.resetUnfreeze(extra);
+        }
+    }
+    void programPCU(uint32 * events, const uint64 filter);
+    void programUBOX(const uint64* events);
 
     void cleanupUncorePMUs();
 
     bool isCLX() const // Cascade Lake-SP
     {
-        return (PCM::SKX == cpu_model) && (cpu_stepping > 4);
+        return (PCM::SKX == cpu_model) && (cpu_stepping > 4 && cpu_stepping < 8);
+    }
+
+    static bool isCPX(int cpu_model_, int cpu_stepping_) // Cooper Lake
+    {
+        return (PCM::SKX == cpu_model_) && (cpu_stepping_ >= 10);
+    }
+
+    bool isCPX() const
+    {
+        return isCPX(cpu_model, cpu_stepping);
     }
 
     void initUncorePMUsDirect();
     void initUncorePMUsPerf();
+    bool isRDTDisabled() const;
 
 public:
     enum EventPosition
@@ -941,6 +974,12 @@ public:
      */
     unsigned getMaxRMID() const;
 
+    //! \brief Returns the number of CBO or CHA units per socket
+    uint32 getMaxNumOfCBoxes() const;
+
+    //! \brief Returns the number of IIO stacks per socket
+    uint32 getMaxNumOfIIOStacks() const;
+
     /*!
             \brief Returns PCM object
 
@@ -949,8 +988,6 @@ public:
 
             \return Pointer to PCM object
     */
-
-
     static PCM * getInstance();        // the only way to get access
 
     /*!
@@ -1027,6 +1064,18 @@ public:
     */
     ErrorCode programServerUncoreMemoryMetrics(int rankA = -1, int rankB = -1, bool PMM = false, bool PMMMixedMode = false);
 
+    // vector of IDs. E.g. for core {raw event} or {raw event, offcore response1 msr value, } or {raw event, offcore response1 msr value, offcore response2}
+    // or for cha/cbo {raw event, filter value}, etc
+    // + user-supplied name
+    typedef std::pair<std::array<uint64, 3>, std::string> RawEventConfig;
+    struct RawPMUConfig
+    {
+        std::vector<RawEventConfig> programmable;
+        std::vector<RawEventConfig> fixed;
+    };
+    typedef std::map<std::string, RawPMUConfig> RawPMUConfigs;
+    ErrorCode program(const RawPMUConfigs& allPMUConfigs);
+
     //! \brief Freezes uncore event counting (works only on microarchitecture codename SandyBridge-EP and IvyTown)
     void freezeServerUncoreCounters();
 
@@ -1037,7 +1086,7 @@ public:
         \param socket socket id
         \return State of power counters in the socket
     */
-    ServerUncorePowerState getServerUncorePowerState(uint32 socket);
+    ServerUncoreCounterState getServerUncoreCounterState(uint32 socket);
 
     /*! \brief Cleanups resources and stops performance counting
 
@@ -1191,6 +1240,7 @@ public:
         SKL_UY = 78,
         KBL = 158,
         KBL_1 = 142,
+        ICL = 126,
         BDX = 79,
         KNL = 87,
         SKL = 94,
@@ -1364,6 +1414,7 @@ public:
         case BDX:
         case SKL:
         case KBL:
+        case ICL:
         case SKX:
             return 4;
         case KNL:
@@ -1519,6 +1570,12 @@ public:
     //! \param rem match on remote node target
     void programCbo(const uint64 * events, const uint32 opCode, const uint32 nc_ = 0, const uint32 llc_lookup_tid_filter = 0, const uint32 loc = 1, const uint32 rem = 1);
 
+    //! \brief Program CBO (or CHA on SKX+) counters
+    //! \param events array with four raw event values
+    //! \param filter0 raw filter value
+    //! \param filter1 raw filter1 value
+    void programCboRaw(const uint64* events, const uint64 filter0, const uint64 filter1);
+
     //! \brief Get the state of PCIe counter(s)
     //! \param socket_ socket of the PCIe controller
     //! \return State of PCIe counter(s)
@@ -1611,6 +1668,7 @@ public:
                  || cpu_model == PCM::KNL
                  || cpu_model == PCM::SKL
                  || cpu_model == PCM::KBL
+                 || cpu_model == PCM::ICL
                  || cpu_model == PCM::SKX
                );
     }
@@ -1694,6 +1752,7 @@ public:
             || cpu_model == PCM::BROADWELL
             || cpu_model == PCM::SKL
             || cpu_model == PCM::KBL
+            || cpu_model == PCM::ICL
             );
     }
 
@@ -1725,6 +1784,7 @@ public:
     {
         return (
             isCLX()
+                    ||  isCPX()
         );
     }
 
@@ -1734,6 +1794,8 @@ public:
                HASWELLX == cpu_model
             || BDX_DE == cpu_model
             || BDX == cpu_model
+            || isCLX()
+            || isCPX()
 #ifdef PCM_ENABLE_LLCRDLAT_SKX_MP
             || SKX == cpu_model
 #else
@@ -1760,6 +1822,13 @@ public:
             || cpu_model == PCM::BDX
             || cpu_model == PCM::KNL
             );
+    }
+
+    bool isSkxCompatible() const
+    {
+        return (
+            cpu_model == PCM::SKX
+               );
     }
 
     bool hasUPI() const // Intel(r) Ultra Path Interconnect
@@ -1791,8 +1860,21 @@ public:
     {
         return    PCM::SKL == cpu_model
                || PCM::KBL == cpu_model
+               || PCM::ICL == cpu_model
                || PCM::SKX == cpu_model
                ;
+    }
+
+    bool hasClientMCCounters() const
+    {
+        return  cpu_model == SANDY_BRIDGE
+            || cpu_model == IVY_BRIDGE
+            || cpu_model == HASWELL
+            || cpu_model == BROADWELL
+            || cpu_model == SKL
+            || cpu_model == KBL
+            || cpu_model == ICL
+            ;
     }
 
     static double getBytesPerFlit(int32 cpu_model_)
@@ -2070,44 +2152,10 @@ inline uint64 RDTSCP()
     return result;
 }
 
-/*! \brief Returns QPI LL clock ticks
-    \param port QPI port number
-    \param before CPU counter state before the experiment
-    \param after CPU counter state after the experiment
-*/
-template <class CounterStateType>
-uint64 getQPIClocks(uint32 port, const CounterStateType & before, const CounterStateType & after)
-{
-    return after.QPIClocks[port] - before.QPIClocks[port];
-}
-
-
 template <class CounterStateType>
 int32 getThermalHeadroom(const CounterStateType & /* before */, const CounterStateType & after)
 {
     return after.getThermalHeadroom();
-}
-
-/*! \brief Returns the number of QPI cycles in power saving half-lane mode
-    \param port QPI port number
-    \param before CPU counter state before the experiment
-    \param after CPU counter state after the experiment
-*/
-template <class CounterStateType>
-uint64 getQPIL0pTxCycles(uint32 port, const CounterStateType & before, const CounterStateType & after)
-{
-    return after.QPIL0pTxCycles[port] - before.QPIL0pTxCycles[port];
-}
-
-/*! \brief Returns the number of QPI cycles in power saving shutdown mode
-    \param port QPI port number
-    \param before CPU counter state before the experiment
-    \param after CPU counter state after the experiment
-*/
-template <class CounterStateType>
-uint64 getQPIL1Cycles(uint32 port, const CounterStateType & before, const CounterStateType & after)
-{
-    return after.QPIL1Cycles[port] - before.QPIL1Cycles[port];
 }
 
 /*! \brief Returns the ratio of QPI cycles in power saving half-lane mode
@@ -2169,6 +2217,65 @@ uint64 getMCCounter(uint32 channel, uint32 counter, const CounterStateType & bef
     return after.MCCounter[channel][counter] - before.MCCounter[channel][counter];
 }
 
+/*! \brief Direct read of M3UPI PMU counter (counter meaning depends on the programming: power/performance/etc)
+    \param counter counter number
+    \param port UPI port number
+    \param before CPU counter state before the experiment
+    \param after CPU counter state after the experiment
+*/
+template <class CounterStateType>
+uint64 getM3UPICounter(uint32 port, uint32 counter, const CounterStateType& before, const CounterStateType& after)
+{
+    return after.M3UPICounter[port][counter] - before.M3UPICounter[port][counter];
+}
+
+/*! \brief Direct read of CHA or CBO PMU counter (counter meaning depends on the programming: power/performance/etc)
+    \param counter counter number
+    \param cbo cbo or cha number
+    \param before CPU counter state before the experiment
+    \param after CPU counter state after the experiment
+*/
+template <class CounterStateType>
+uint64 getCBOCounter(uint32 cbo, uint32 counter, const CounterStateType& before, const CounterStateType& after)
+{
+    return after.CBOCounter[cbo][counter] - before.CBOCounter[cbo][counter];
+}
+
+/*! \brief Direct read of UBOX PMU counter (counter meaning depends on the programming: power/performance/etc)
+    \param counter counter number
+    \param cbo cbo or cha number
+    \param before CPU counter state before the experiment
+    \param after CPU counter state after the experiment
+*/
+template <class CounterStateType>
+uint64 getUBOXCounter(uint32 counter, const CounterStateType& before, const CounterStateType& after)
+{
+    return after.UBOXCounter[counter] - before.UBOXCounter[counter];
+}
+
+/*! \brief Direct read of IIO PMU counter (counter meaning depends on the programming: power/performance/etc)
+    \param counter counter number
+    \param cbo IIO stack number
+    \param before CPU counter state before the experiment
+    \param after CPU counter state after the experiment
+*/
+template <class CounterStateType>
+uint64 getIIOCounter(uint32 stack, uint32 counter, const CounterStateType& before, const CounterStateType& after)
+{
+    return after.IIOCounter[stack][counter] - before.IIOCounter[stack][counter];
+}
+
+/*! \brief Direct read of UPI or QPI PMU counter (counter meaning depends on the programming: power/performance/etc)
+    \param counter counter number
+    \param port UPI/QPI port number
+    \param before CPU counter state before the experiment
+    \param after CPU counter state after the experiment
+*/
+template <class CounterStateType>
+uint64 getXPICounter(uint32 port, uint32 counter, const CounterStateType& before, const CounterStateType& after)
+{
+    return after.xPICounter[port][counter] - before.xPICounter[port][counter];
+}
 
 /*! \brief Direct read of Memory2Mesh controller PMU counter (counter meaning depends on the programming: power/performance/etc)
     \param counter counter number
@@ -2236,6 +2343,16 @@ template <class CounterStateType>
 uint64 getDRAMConsumedEnergy(const CounterStateType & before, const CounterStateType & after)
 {
     return after.DRAMEnergyStatus - before.DRAMEnergyStatus;
+}
+
+/*!  \brief Returns uncore clock ticks
+    \param before CPU counter state before the experiment
+    \param after CPU counter state after the experiment
+*/
+template <class CounterStateType>
+uint64 getUncoreClocks(const CounterStateType& before, const CounterStateType& after)
+{
+    return after.UncClocks - before.UncClocks;
 }
 
 /*!  \brief Returns Joules consumed by processor (excluding DRAM)
@@ -2308,6 +2425,8 @@ class UncoreCounterState
     friend uint64 getConsumedEnergy(const CounterStateType & before, const CounterStateType & after);
     template <class CounterStateType>
     friend uint64 getDRAMConsumedEnergy(const CounterStateType & before, const CounterStateType & after);
+    template <class CounterStateType>
+    friend uint64 getUncoreClocks(const CounterStateType& before, const CounterStateType& after);
     template <class CounterStateType>
     friend double getPackageCStateResidency(int state, const CounterStateType & before, const CounterStateType & after);
     template <class CounterStateType>
@@ -2385,17 +2504,29 @@ public:
 
 //! \brief Server uncore power counter state
 //!
-class ServerUncorePowerState : public UncoreCounterState
+class ServerUncoreCounterState : public UncoreCounterState
 {
 public:
     enum {
         maxControllers = 2,
         maxChannels = 8,
-        maxXPILinks = 3,
+        maxXPILinks = 6,
+        maxCBOs = 128,
+        maxIIOStacks = 16,
         maxCounters = 4
     };
+    enum EventPosition
+    {
+        xPI_TxL0P_POWER_CYCLES = 0,
+        xPI_L1_POWER_CYCLES = 2,
+        xPI_CLOCKTICKS = 3
+    };
 private:
-    std::array<uint64, maxXPILinks> QPIClocks, QPIL0pTxCycles, QPIL1Cycles;
+    std::array<std::array<uint64, maxCounters>, maxXPILinks> xPICounter;
+    std::array<std::array<uint64, maxCounters>, maxXPILinks> M3UPICounter;
+    std::array<std::array<uint64, maxCounters>, maxCBOs> CBOCounter;
+    std::array<std::array<uint64, maxCounters>, maxIIOStacks> IIOCounter;
+    std::array<uint64, maxCounters> UBOXCounter;
     std::array<uint64, maxChannels> DRAMClocks;
     std::array<uint64, maxChannels> MCDRAMClocks;
     std::array<std::array<uint64, maxCounters>, maxChannels> MCCounter; // channel X counter
@@ -2406,17 +2537,21 @@ private:
     uint64 InvariantTSC;    // invariant time stamp counter
     friend class PCM;
     template <class CounterStateType>
-    friend uint64 getQPIClocks(uint32 port, const CounterStateType & before, const CounterStateType & after);
-    template <class CounterStateType>
-    friend uint64 getQPIL0pTxCycles(uint32 port, const CounterStateType & before, const CounterStateType & after);
-    template <class CounterStateType>
-    friend uint64 getQPIL1Cycles(uint32 port, const CounterStateType & before, const CounterStateType & after);
-    template <class CounterStateType>
     friend uint64 getDRAMClocks(uint32 channel, const CounterStateType & before, const CounterStateType & after);
     template <class CounterStateType>
     friend uint64 getMCDRAMClocks(uint32 channel, const CounterStateType & before, const CounterStateType & after);
     template <class CounterStateType>
     friend uint64 getMCCounter(uint32 channel, uint32 counter, const CounterStateType & before, const CounterStateType & after);
+    template <class CounterStateType>
+    friend uint64 getM3UPICounter(uint32 port, uint32 counter, const CounterStateType& before, const CounterStateType& after);
+    template <class CounterStateType>
+    friend uint64 getCBOCounter(uint32 cbo, uint32 counter, const CounterStateType& before, const CounterStateType& after);
+    template <class CounterStateType>
+    friend uint64 getUBOXCounter(uint32 counter, const CounterStateType& before, const CounterStateType& after);
+    template <class CounterStateType>
+    friend uint64 getIIOCounter(uint32 stack, uint32 counter, const CounterStateType& before, const CounterStateType& after);
+    template <class CounterStateType>
+    friend uint64 getXPICounter(uint32 port, uint32 counter, const CounterStateType& before, const CounterStateType& after);
     template <class CounterStateType>
     friend uint64 getM2MCounter(uint32 controller, uint32 counter, const CounterStateType & before, const CounterStateType & after);
     template <class CounterStateType>
@@ -2433,8 +2568,12 @@ private:
 public:
     //! Returns current thermal headroom below TjMax
     int32 getPackageThermalHeadroom() const { return PackageThermalHeadroom; }
-    ServerUncorePowerState() :
-        QPIClocks{}, QPIL0pTxCycles{}, QPIL1Cycles{},
+    ServerUncoreCounterState() :
+        xPICounter{},
+        M3UPICounter{},
+        CBOCounter{},
+        IIOCounter{},
+        UBOXCounter{},
         DRAMClocks{},
         MCDRAMClocks{},
         MCCounter{},
@@ -2446,6 +2585,39 @@ public:
     {
     }
 };
+
+/*! \brief Returns QPI LL clock ticks
+    \param port QPI port number
+    \param before CPU counter state before the experiment
+    \param after CPU counter state after the experiment
+*/
+template <class CounterStateType>
+uint64 getQPIClocks(uint32 port, const CounterStateType& before, const CounterStateType& after)
+{
+    return getXPICounter(port, ServerUncoreCounterState::EventPosition::xPI_CLOCKTICKS, before, after);
+}
+
+/*! \brief Returns the number of QPI cycles in power saving half-lane mode
+    \param port QPI port number
+    \param before CPU counter state before the experiment
+    \param after CPU counter state after the experiment
+*/
+template <class CounterStateType>
+uint64 getQPIL0pTxCycles(uint32 port, const CounterStateType& before, const CounterStateType& after)
+{
+    return getXPICounter(port, ServerUncoreCounterState::EventPosition::xPI_TxL0P_POWER_CYCLES, before, after);
+}
+
+/*! \brief Returns the number of QPI cycles in power saving shutdown mode
+    \param port QPI port number
+    \param before CPU counter state before the experiment
+    \param after CPU counter state after the experiment
+*/
+template <class CounterStateType>
+uint64 getQPIL1Cycles(uint32 port, const CounterStateType& before, const CounterStateType& after)
+{
+    return getXPICounter(port, ServerUncoreCounterState::EventPosition::xPI_L1_POWER_CYCLES, before, after);
+}
 
 //! \brief (Logical) core-wide counter state
 class CoreCounterState : public BasicCounterState
@@ -3451,5 +3623,7 @@ inline double getLLCReadMissLatency(const CounterStateType & before, const Count
     const double seconds = double(getInvariantTSC(before, after)) / double(m->getNumCores()/m->getNumSockets()) / double(m->getNominalFrequency());
     return 1e9*seconds*(occupancy/inserts)/unc_clocks;
 }
+
+} // namespace pcm
 
 #endif

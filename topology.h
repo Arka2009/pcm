@@ -41,6 +41,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "cpucounters.h"
 #include "threadpool.h"
 
+namespace pcm {
+
 // all can be done with forwards, anything hat actually uses PCM should be put in the topology.cpp file
 class PCM;
 
@@ -89,7 +91,7 @@ public:
         CoreCounterState ccs;
         // fill ccs
         ccs.BasicCounterState::readAndAggregate( msrHandle_ );
-        return std::move( ccs );
+        return ccs;
     }
 
     void addMSRHandle( std::shared_ptr<SafeMsrHandle> handle ) {
@@ -148,7 +150,7 @@ public:
         for ( HyperThread* thread : threads_ ) {
             ccs += thread->coreCounterState();
         }
-        return std::move( ccs );
+        return ccs;
     }
 
     void addHyperThreadInfo( int32 threadID, int32 osID ) {
@@ -279,7 +281,7 @@ public:
     virtual UncoreCounterState uncoreCounterState( void ) const override {
         UncoreCounterState ucs;
         // TODO: Fill the ucs
-        return std::move( ucs );
+        return ucs;
     }
 };
 
@@ -442,7 +444,7 @@ public:
         for ( auto socket : sockets_ ) {
             scs += ( socket->socketCounterState() );
         }
-        return std::move( scs );
+        return scs;
     }
 
     std::vector<Socket*> const & sockets( void ) const {
@@ -471,7 +473,7 @@ public:
     virtual ~Aggregator() {}
 
 public:
-    virtual void dispatch( SystemRoot const& syp );
+    virtual void dispatch( SystemRoot const& syp ) override;
 
     virtual void dispatch( Socket* sop ) override {
         // std::cerr << "Aggregator::dispatch( Socket )\n";
@@ -553,3 +555,4 @@ private:
     WorkQueue wq_;
 };
 
+} // namespace pcm

@@ -14,7 +14,6 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 // written by Roman Dementiev
 // added PPD cycles by Thomas Willhalm
 
-#define HACK_TO_REMOVE_DUPLICATE_ERROR
 #include "cpucounters.h"
 #ifdef _MSC_VER
 #include <windows.h>
@@ -37,6 +36,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 #define PCM_CALIBRATION_INTERVAL 50 // calibrate clock only every 50th iteration
 
 using namespace std;
+using namespace pcm;
 
 int getFirstRank(int imc_profile)
 {
@@ -47,12 +47,12 @@ int getSecondRank(int imc_profile)
     return (imc_profile * 2) + 1;
 }
 
-double getCKEOffResidency(uint32 channel, uint32 rank, const ServerUncorePowerState & before, const ServerUncorePowerState & after)
+double getCKEOffResidency(uint32 channel, uint32 rank, const ServerUncoreCounterState & before, const ServerUncoreCounterState & after)
 {
     return double(getMCCounter(channel, (rank & 1) ? 2 : 0, before, after)) / double(getDRAMClocks(channel, before, after));
 }
 
-int64 getCKEOffAverageCycles(uint32 channel, uint32 rank, const ServerUncorePowerState & before, const ServerUncorePowerState & after)
+int64 getCKEOffAverageCycles(uint32 channel, uint32 rank, const ServerUncoreCounterState & before, const ServerUncoreCounterState & after)
 {
     uint64 div = getMCCounter(channel, (rank & 1) ? 3 : 1, before, after);
     if (div)
@@ -61,7 +61,7 @@ int64 getCKEOffAverageCycles(uint32 channel, uint32 rank, const ServerUncorePowe
     return -1;
 }
 
-int64 getCyclesPerTransition(uint32 channel, uint32 rank, const ServerUncorePowerState & before, const ServerUncorePowerState & after)
+int64 getCyclesPerTransition(uint32 channel, uint32 rank, const ServerUncoreCounterState & before, const ServerUncoreCounterState & after)
 {
     uint64 div = getMCCounter(channel, (rank & 1) ? 3 : 1, before, after);
     if (div)
@@ -70,27 +70,27 @@ int64 getCyclesPerTransition(uint32 channel, uint32 rank, const ServerUncorePowe
     return -1;
 }
 
-uint64 getSelfRefreshCycles(uint32 channel, const ServerUncorePowerState & before, const ServerUncorePowerState & after)
+uint64 getSelfRefreshCycles(uint32 channel, const ServerUncoreCounterState & before, const ServerUncoreCounterState & after)
 {
     return getMCCounter(channel, 0, before, after);
 }
 
-uint64 getSelfRefreshTransitions(uint32 channel, const ServerUncorePowerState & before, const ServerUncorePowerState & after)
+uint64 getSelfRefreshTransitions(uint32 channel, const ServerUncoreCounterState & before, const ServerUncoreCounterState & after)
 {
     return getMCCounter(channel, 1, before, after);
 }
 
-uint64 getPPDCycles(uint32 channel, const ServerUncorePowerState & before, const ServerUncorePowerState & after)
+uint64 getPPDCycles(uint32 channel, const ServerUncoreCounterState & before, const ServerUncoreCounterState & after)
 {
     return getMCCounter(channel, 2, before, after);
 }
 
-double getNormalizedPCUCounter(uint32 counter, const ServerUncorePowerState & before, const ServerUncorePowerState & after)
+double getNormalizedPCUCounter(uint32 counter, const ServerUncoreCounterState & before, const ServerUncoreCounterState & after)
 {
     return double(getPCUCounter(counter, before, after)) / double(getPCUClocks(before, after));
 }
 
-double getNormalizedPCUCounter(uint32 counter, const ServerUncorePowerState & before, const ServerUncorePowerState & after, PCM * m)
+double getNormalizedPCUCounter(uint32 counter, const ServerUncoreCounterState & before, const ServerUncoreCounterState & after, PCM * m)
 {
     const uint64 PCUClocks = (m->getPCUFrequency() * getInvariantTSC(before, after)) / m->getNominalFrequency();
     //cout << "PCM Debug: PCU clocks " << PCUClocks << "\n";
@@ -282,8 +282,8 @@ int main(int argc, char * argv[])
 #endif
         exit(EXIT_FAILURE);
     }
-    ServerUncorePowerState * BeforeState = new ServerUncorePowerState[m->getNumSockets()];
-    ServerUncorePowerState * AfterState = new ServerUncorePowerState[m->getNumSockets()];
+    ServerUncoreCounterState * BeforeState = new ServerUncoreCounterState[m->getNumSockets()];
+    ServerUncoreCounterState * AfterState = new ServerUncoreCounterState[m->getNumSockets()];
     uint64 BeforeTime = 0, AfterTime = 0;
 
     cerr << dec << "\n";
@@ -316,7 +316,7 @@ int main(int argc, char * argv[])
     uint32 i = 0;
 
     for (i = 0; i < m->getNumSockets(); ++i)
-        BeforeState[i] = m->getServerUncorePowerState(i);
+        BeforeState[i] = m->getServerUncoreCounterState(i);
 
     BeforeTime = m->getTickCount();
     if (sysCmd != NULL) {
@@ -346,8 +346,10 @@ int main(int argc, char * argv[])
             calibrated_delay_ms = delay_ms - diff_usec / 1000.0;
         }
 #endif
-
-        MySleepMs(calibrated_delay_ms);
+        if (sysCmd == NULL || numberOfIterations != 0 || m->isBlocked() == false)
+        {
+            MySleepMs(calibrated_delay_ms);
+        }
 
 #ifndef _MSC_VER
         calibrated = (calibrated + 1) % PCM_CALIBRATION_INTERVAL;
@@ -358,7 +360,7 @@ int main(int argc, char * argv[])
 
         AfterTime = m->getTickCount();
         for (i = 0; i < m->getNumSockets(); ++i)
-            AfterState[i] = m->getServerUncorePowerState(i);
+            AfterState[i] = m->getServerUncoreCounterState(i);
 
         cout << "Time elapsed: " << AfterTime - BeforeTime << " ms\n";
         cout << "Called sleep function for " << delay_ms << " ms\n";

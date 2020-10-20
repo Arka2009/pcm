@@ -18,7 +18,6 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 /*!     \file pcm.cpp
 \brief Example of using CPU counters: implements a simple performance counter monitoring utility
 */
-#define HACK_TO_REMOVE_DUPLICATE_ERROR
 #include <iostream>
 #ifdef _MSC_VER
 #include <windows.h>
@@ -47,6 +46,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 #define MAX_CORES 4096
 
 using namespace std;
+using namespace pcm;
 
 template <class IntType>
 double float_format(IntType n)
@@ -93,7 +93,8 @@ void print_help(const string prog_name)
     cerr << "  -nsys | --nosystem  | /nsys        => hide system related output\n";
     cerr << "  -m    | --multiple-instances | /m  => allow multiple PCM instances running in parallel\n";
     cerr << "  -csv[=file.csv] | /csv[=file.csv]  => output compact CSV format to screen or\n"
-        << "                                        to a file, in case filename is provided\n";
+        << "                                        to a file, in case filename is provided\n"
+        << "                                        the format used is documented here: https://software.intel.com/content/www/us/en/develop/blogs/intel-pcm-column-names-decoder-ring.html\n";
     cerr << "  -i[=number] | /i[=number]          => allow to determine number of iterations\n";
     print_help_force_rtm_abort_mode(37);
     cerr << " Examples:\n";

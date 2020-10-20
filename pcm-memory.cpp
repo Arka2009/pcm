@@ -18,7 +18,6 @@
 /*!     \file pcm-memory.cpp
   \brief Example of using CPU counters: implements a performance counter monitoring utility for memory controller channels and DIMMs (ranks) + PMM memory traffic
   */
-#define HACK_TO_REMOVE_DUPLICATE_ERROR
 #include <iostream>
 #ifdef _MSC_VER
 #include <windows.h>
@@ -45,18 +44,19 @@
 #define DEFAULT_DISPLAY_COLUMNS 2
 
 using namespace std;
+using namespace pcm;
 
 const uint32 max_sockets = 256;
-const uint32 max_imc_channels = ServerUncorePowerState::maxChannels;
-const uint32 max_edc_channels = ServerUncorePowerState::maxChannels;
-const uint32 max_imc_controllers = ServerUncorePowerState::maxControllers;
+uint32 max_imc_channels = ServerUncoreCounterState::maxChannels;
+const uint32 max_edc_channels = ServerUncoreCounterState::maxChannels;
+const uint32 max_imc_controllers = ServerUncoreCounterState::maxControllers;
 
 typedef struct memdata {
-    float iMC_Rd_socket_chan[max_sockets][max_imc_channels];
-    float iMC_Wr_socket_chan[max_sockets][max_imc_channels];
-    float iMC_PMM_Rd_socket_chan[max_sockets][max_imc_channels];
-    float iMC_PMM_Wr_socket_chan[max_sockets][max_imc_channels];
-    float iMC_PMM_MemoryMode_Miss_socket_chan[max_sockets][max_imc_channels];
+    float iMC_Rd_socket_chan[max_sockets][ServerUncoreCounterState::maxChannels];
+    float iMC_Wr_socket_chan[max_sockets][ServerUncoreCounterState::maxChannels];
+    float iMC_PMM_Rd_socket_chan[max_sockets][ServerUncoreCounterState::maxChannels];
+    float iMC_PMM_Wr_socket_chan[max_sockets][ServerUncoreCounterState::maxChannels];
+    float iMC_PMM_MemoryMode_Miss_socket_chan[max_sockets][ServerUncoreCounterState::maxChannels];
     float iMC_Rd_socket[max_sockets];
     float iMC_Wr_socket[max_sockets];
     float iMC_PMM_Rd_socket[max_sockets];
@@ -71,6 +71,8 @@ typedef struct memdata {
     bool PMM, PMMMixedMode;
 } memdata_t;
 
+bool skipInactiveChannels = true;
+
 void print_help(const string prog_name)
 {
     cerr << "\n Usage: \n " << prog_name
@@ -81,12 +83,14 @@ void print_help(const string prog_name)
     cerr << " Supported <options> are: \n";
     cerr << "  -h    | --help  | /h               => print this help and exit\n";
     cerr << "  -rank=X | /rank=X                  => monitor DIMM rank X. At most 2 out of 8 total ranks can be monitored simultaneously.\n";
-    cerr << "  -pmm                               => monitor PMM memory bandwidth (instead of partial writes).\n";
+    cerr << "  -pmm | /pmm | -pmem | /pmem        => monitor PMM memory bandwidth and DRAM cache hit rate in Memory Mode (default on systems with PMM support).\n";
     cerr << "  -mixed                             => monitor PMM mixed mode (AppDirect + Memory Mode).\n";
+    cerr << "  -partial                           => monitor monitor partial writes instead of PMM (default on systems without PMM support).\n";
     cerr << "  -nc   | --nochannel | /nc          => suppress output for individual channels.\n";
     cerr << "  -csv[=file.csv] | /csv[=file.csv]  => output compact CSV format to screen or\n"
          << "                                        to a file, in case filename is provided\n";
     cerr << "  -columns=X | /columns=X            => Number of columns to display the NUMA Nodes, defaults to 2.\n";
+    cerr << "  -all | /all                        => Display all channels (even with no traffic)\n";
 #ifdef _MSC_VER
     cerr << "  --uninstallDriver | --installDriver=> (un)install driver\n";
 #endif
@@ -181,7 +185,7 @@ void printSocketChannelBW(PCM */*m*/, memdata_t *md, uint32 no_columns, uint32 s
     }
 }
 
-void printSocketChannelBW(uint32 no_columns, uint32 skt, uint32 num_imc_channels, const ServerUncorePowerState * uncState1, const ServerUncorePowerState * uncState2, uint64 elapsedTime, int rankA, int rankB)
+void printSocketChannelBW(uint32 no_columns, uint32 skt, uint32 num_imc_channels, const ServerUncoreCounterState * uncState1, const ServerUncoreCounterState * uncState2, uint64 elapsedTime, int rankA, int rankB)
 {
     for (uint32 channel = 0; channel < num_imc_channels; ++channel) {
         if(rankA >= 0) {
@@ -415,48 +419,10 @@ void display_bandwidth(PCM *m, memdata_t *md, const uint32 no_columns, const boo
     }
 }
 
-enum CsvOutputType
-{
-    Header1,
-    Header2,
-    Data
-};
-
-template <class H1, class H2, class D>
-void choose(const CsvOutputType outputType, H1 h1Func, H2 h2Func, D dataFunc)
-{
-    switch (outputType)
-    {
-    case Header1:
-        h1Func();
-        break;
-    case Header2:
-        h2Func();
-        break;
-    case Data:
-        dataFunc();
-        break;
-    default:
-        cerr << "PCM internal error: wrong CSvOutputType\n";
-    }
-}
-
 void display_bandwidth_csv(PCM *m, memdata_t *md, uint64 /*elapsedTime*/, const bool show_channel_output, const CsvOutputType outputType)
 {
     const uint32 numSockets = m->getNumSockets();
-    choose(outputType,
-           []() {
-               cout << ",,"; // Time
-           },
-           []() { cout << "Date,Time,"; },
-           []() {
-               tm tt = pcm_localtime();
-               cout.precision(3);
-               cout << 1900 + tt.tm_year << '-' << 1 + tt.tm_mon << '-' << tt.tm_mday << ','
-                    << tt.tm_hour << ':' << tt.tm_min << ':' << tt.tm_sec << ',';
-               cout.setf(ios::fixed);
-               cout.precision(2);
-           });
+    printDateForCSV(outputType);
 
     float sysReadDRAM = 0.0, sysWriteDRAM = 0.0, sysReadPMM = 0.0, sysWritePMM = 0.0;
 
@@ -528,6 +494,22 @@ void display_bandwidth_csv(PCM *m, memdata_t *md, uint64 /*elapsedTime*/, const 
                        cout << setw(8) << md->iMC_PMM_Rd_socket[skt] << ','
                             << setw(8) << md->iMC_PMM_Wr_socket[skt] << ',';
                    });
+        }
+        if (md->PMM)
+        {
+            for (uint32 c = 0; c < max_imc_controllers; ++c)
+            {
+                choose(outputType,
+                    [printSKT]() {
+                        printSKT();
+                    },
+                    [c]() {
+                        cout << "iMC" << c << " NM read hit rate,";
+                    },
+                    [&md, &skt, c]() {
+                        cout << setw(8) << md->M2M_NM_read_hit_rate[skt][c] << ',';
+                    });
+            }
         }
         if (md->PMMMixedMode)
         {
@@ -650,7 +632,7 @@ void display_bandwidth_csv(PCM *m, memdata_t *md, uint64 /*elapsedTime*/, const 
            });
 }
 
-void calculate_bandwidth(PCM *m, const ServerUncorePowerState uncState1[], const ServerUncorePowerState uncState2[], const uint64 elapsedTime, const bool csv, bool & csvheader, uint32 no_columns, const bool PMM, const bool show_channel_output, const bool PMMMixedMode)
+void calculate_bandwidth(PCM *m, const ServerUncoreCounterState uncState1[], const ServerUncoreCounterState uncState2[], const uint64 elapsedTime, const bool csv, bool & csvheader, uint32 no_columns, const bool PMM, const bool show_channel_output, const bool PMMMixedMode)
 {
     //const uint32 num_imc_channels = m->getMCChannelsPerSocket();
     //const uint32 num_edc_channels = m->getEDCChannelsPerSocket();
@@ -684,7 +666,7 @@ void calculate_bandwidth(PCM *m, const ServerUncorePowerState uncState1[], const
         case PCM::KNL:
             for (uint32 channel = 0; channel < max_edc_channels; ++channel)
             {
-                if (getEDCCounter(channel, ServerPCICFGUncore::EventPosition::READ, uncState1[skt], uncState2[skt]) == 0.0 && getEDCCounter(channel, ServerPCICFGUncore::EventPosition::WRITE, uncState1[skt], uncState2[skt]) == 0.0)
+                if (skipInactiveChannels && getEDCCounter(channel, ServerPCICFGUncore::EventPosition::READ, uncState1[skt], uncState2[skt]) == 0.0 && getEDCCounter(channel, ServerPCICFGUncore::EventPosition::WRITE, uncState1[skt], uncState2[skt]) == 0.0)
                 {
                     md.EDC_Rd_socket_chan[skt][channel] = -1.0;
                     md.EDC_Wr_socket_chan[skt][channel] = -1.0;
@@ -714,13 +696,17 @@ void calculate_bandwidth(PCM *m, const ServerUncorePowerState uncState1[], const
                     pmmMemoryModeCleanMisses = getMCCounter(channel, ServerPCICFGUncore::EventPosition::PMM_MM_MISS_CLEAN, uncState1[skt], uncState2[skt]);
                     pmmMemoryModeDirtyMisses = getMCCounter(channel, ServerPCICFGUncore::EventPosition::PMM_MM_MISS_DIRTY, uncState1[skt], uncState2[skt]);
                 }
-                if (reads + writes == 0)
+                if (skipInactiveChannels && (reads + writes == 0))
                 {
-                    if ((!PMM || (pmmReads + pmmWrites == 0)) || (!PMMMixedMode || (pmmMemoryModeCleanMisses + pmmMemoryModeDirtyMisses == 0)))
+                    if ((PMM == false) || (pmmReads + pmmWrites == 0))
                     {
-                        md.iMC_Rd_socket_chan[skt][channel] = -1.0;
-                        md.iMC_Wr_socket_chan[skt][channel] = -1.0;
-                        continue;
+                        if ((PMMMixedMode == false) || (pmmMemoryModeCleanMisses + pmmMemoryModeDirtyMisses == 0))
+                        {
+
+                            md.iMC_Rd_socket_chan[skt][channel] = -1.0;
+                            md.iMC_Wr_socket_chan[skt][channel] = -1.0;
+                            continue;
+                        }
                     }
                 }
 
@@ -787,7 +773,7 @@ void calculate_bandwidth(PCM *m, const ServerUncorePowerState uncState1[], const
     }
 }
 
-void calculate_bandwidth_rank(PCM *m, const ServerUncorePowerState uncState1[], const ServerUncorePowerState uncState2[], const uint64 elapsedTime, const bool /*csv*/, bool & /*csvheader*/, const uint32 no_columns, const int rankA, const int rankB)
+void calculate_bandwidth_rank(PCM *m, const ServerUncoreCounterState uncState1[], const ServerUncoreCounterState uncState2[], const uint64 elapsedTime, const bool /*csv*/, bool & /*csvheader*/, const uint32 no_columns, const int rankA, const int rankB)
 {
     uint32 skt = 0;
     cout.setf(ios::fixed);
@@ -845,15 +831,15 @@ int main(int argc, char * argv[])
     int calibrated = PCM_CALIBRATION_INTERVAL - 2; // keeps track is the clock calibration needed
 #endif
     int rankA = -1, rankB = -1;
-    bool PMM = false;
-    bool PMMMixedMode = false;
     unsigned int numberOfIterations = 0; // number of iterations
 
     string program = string(argv[0]);
 
     PCM * m = PCM::getInstance();
+    bool PMM = m->PMMTrafficMetricsAvailable();
+    bool PMMMixedMode = false;
 
-    if(argc > 1) do
+    if (argc > 1) do
     {
         argv++;
         argc--;
@@ -941,10 +927,19 @@ int main(int argc, char * argv[])
             continue;
         }
 
-        if (strncmp(*argv, "-pmm", 6) == 0 ||
-            strncmp(*argv, "/pmm", 6) == 0)
+        if (strncmp(*argv, "-pmm", 4) == 0 ||
+            strncmp(*argv, "/pmm", 4) == 0 ||
+            strncmp(*argv, "-pmem", 5) == 0 ||
+            strncmp(*argv, "/pmem", 5) == 0 )
         {
             PMM = true;
+            continue;
+        }
+
+        if (strncmp(*argv, "-all", 4) == 0 ||
+            strncmp(*argv, "/all", 4) == 0)
+        {
+            skipInactiveChannels = false;
             continue;
         }
 
@@ -952,6 +947,14 @@ int main(int argc, char * argv[])
             strncmp(*argv, "/mixed", 6) == 0)
         {
             PMMMixedMode = true;
+            continue;
+        }
+
+        if (strncmp(*argv, "-partial", 8) == 0 ||
+            strncmp(*argv, "/partial", 8) == 0)
+        {
+            PMM = false;
+            PMMMixedMode =false;
             continue;
         }
 #ifdef _MSC_VER
@@ -1060,8 +1063,10 @@ int main(int argc, char * argv[])
         exit(EXIT_FAILURE);
     }
 
-    ServerUncorePowerState * BeforeState = new ServerUncorePowerState[m->getNumSockets()];
-    ServerUncorePowerState * AfterState = new ServerUncorePowerState[m->getNumSockets()];
+    max_imc_channels = m->getMCChannelsPerSocket();
+
+    ServerUncoreCounterState * BeforeState = new ServerUncoreCounterState[m->getNumSockets()];
+    ServerUncoreCounterState * AfterState = new ServerUncoreCounterState[m->getNumSockets()];
     uint64 BeforeTime = 0, AfterTime = 0;
 
     if ( (sysCmd != NULL) && (delay<=0.0) ) {
@@ -1084,7 +1089,7 @@ int main(int argc, char * argv[])
     cerr << "Update every " << delay << " seconds\n";
 
     for(uint32 i=0; i<m->getNumSockets(); ++i)
-        BeforeState[i] = m->getServerUncorePowerState(i);
+        BeforeState[i] = m->getServerUncoreCounterState(i);
 
     BeforeTime = m->getTickCount();
 
@@ -1114,7 +1119,10 @@ int main(int argc, char * argv[])
         }
 #endif
 
-        MySleepMs(calibrated_delay_ms);
+        if (sysCmd == NULL || numberOfIterations != 0 || m->isBlocked() == false)
+        {
+            MySleepMs(calibrated_delay_ms);
+        }
 
 #ifndef _MSC_VER
         calibrated = (calibrated + 1) % PCM_CALIBRATION_INTERVAL;
@@ -1125,7 +1133,7 @@ int main(int argc, char * argv[])
 
         AfterTime = m->getTickCount();
         for(uint32 i=0; i<m->getNumSockets(); ++i)
-            AfterState[i] = m->getServerUncorePowerState(i);
+            AfterState[i] = m->getServerUncoreCounterState(i);
 
         if (!csv) {
           //cout << "Time elapsed: " << dec << fixed << AfterTime-BeforeTime << " ms\n";

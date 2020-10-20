@@ -5,23 +5,18 @@
 
 EXE = pcm.x pcm-numa.x pcm-latency.x pcm-power.x pcm-sensor.x pcm-msr.x pcm-memory.x pcm-tsx.x pcm-pcie.x pcm-core.x pcm-iio.x pcm-lspci.x pcm-pcicfg.x
 EXE += pcm-mmio.x
-# INSTALLDIR = /home/amaity/Desktop/ltephygpp/LIBPCM
+
+EXE += c_example.x
+
+EXE += pcm-raw.x
+
 UNAME:=$(shell uname)
 
 ifeq ($(UNAME), Linux)
 EXE += daemon-binaries
 endif
 
-CXXFLAGS += -Wall -g -O3 -Wno-unknown-pragmas -std=c++11
-all: $(EXE) lib  #ORIGINAL CODE
-
-lib: libPCM.a
-
-daemon-binaries:
-	make -C daemon/daemon/Debug
-	make -C daemon/client/Debug
-
-klocwork: $(EXE)
+CXXFLAGS += -Wall -g -O3 -Wno-unknown-pragmas -std=c++11 -fPIC
 
 # uncomment if your Linux kernel supports access to /dev/mem from user space
 # CXXFLAGS += -DPCM_USE_PCI_MM_LINUX
@@ -77,12 +72,18 @@ libPCM.a: $(COMMON_OBJS)
 	# cp libPCM.a $(INSTALLDIR)
 
 %.x: %.o $(COMMON_OBJS)
-	$(CXX) -o $@ $^ $(LIB)
+	$(CXX) $(LDFLAGS) -o $@ $^ $(LIB)
 
 pcm-sensor-server.o: pcm-sensor-server.cpp favicon.ico.h
 
 pcm-sensor-server.x: pcm-sensor-server.o $(COMMON_OBJS)
-	$(CXX) -o $@ $^ $(LIB) $(OPENSSL_LIB)
+	$(CXX) $(LDFLAGS) -o $@ $^ $(LIB) $(OPENSSL_LIB)
+
+libpcm.so: $(COMMON_OBJS) pcm-core.o
+	$(CXX) $(LDFLAGS) $(CXXFLAGS) -DPCM_SILENT -shared $^ $(LIB) -o $@
+
+c_example.x: c_example.o libpcm.so
+	$(CC) $^ -ldl -L./ -lpcm -Wl,-rpath,$(shell pwd) -o $@
 
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -c $*.cpp -o $*.o
@@ -126,6 +127,7 @@ install: all
 	install -s -m 755 pcm-power.x                ${prefix}/sbin/pcm-power
 	install -s -m 755 pcm-sensor.x               ${prefix}/sbin/pcm-sensor
 	install -s -m 755 pcm-tsx.x                  ${prefix}/sbin/pcm-tsx
+	install -s -m 755 pcm-raw.x                  ${prefix}/sbin/pcm-raw
 	install -s -m 755 pcm.x                      ${prefix}/sbin/pcm
 ifeq ($(UNAME), Linux)
 	mkdir -p                                     ${prefix}/bin/
@@ -138,6 +140,8 @@ endif
 	install -m 644 opCode.txt                    ${prefix}/share/pcm/
 
 clean:
-	rm -rf *.x *.o *~ *.d *.a
+	rm -rf *.x *.o *~ *.d *.a *.so
+ifeq ($(UNAME), Linux)
 	make -C daemon/daemon/Debug clean
 	make -C daemon/client/Debug clean
+endif

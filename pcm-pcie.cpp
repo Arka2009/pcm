@@ -18,7 +18,6 @@
 /*!     \file pcm-pcie.cpp
   \brief Example of using uncore CBo counters: implements a performance counter monitoring utility for monitoring PCIe bandwidth
   */
-#define HACK_TO_REMOVE_DUPLICATE_ERROR
 #ifdef _MSC_VER
 #include <windows.h>
 #include "../PCM_Win/windriver.h"
@@ -79,6 +78,7 @@ void print_usage(const string progname)
          << "                                        to a file, in case filename is provided\n";
     cerr << "  -B                                 => Estimate PCIe B/W (in Bytes/sec) by multiplying\n";
     cerr << "                                        the number of transfers by the cache line size (=64 bytes).\n";
+    cerr << "  -e                                 => print additional PCIe LLC miss/hit statistics.\n";
     cerr << " It overestimates the bandwidth under traffic with many partial cache line transfers.\n";
     cerr << "\n";
     print_events();

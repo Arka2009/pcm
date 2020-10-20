@@ -28,6 +28,12 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 #include <sstream>
 #include <iomanip>
 
+#ifdef _MSC_VER
+#include <windows.h>
+#endif
+
+namespace pcm {
+
 typedef unsigned long long uint64;
 typedef signed long long int64;
 typedef unsigned int uint32;
@@ -359,6 +365,7 @@ struct FixedEventControlRegister
         } fields;
         uint64 value;
     };
+    FixedEventControlRegister() : value(0) {}
 };
 
 inline std::ostream & operator << (std::ostream & o, const FixedEventControlRegister & reg)
@@ -661,9 +668,36 @@ struct BecktonUncorePMUCNTCTLRegister
 #define SKX_QPI_PORT2_REGISTER_DEV_ADDR  (16)
 #define SKX_QPI_PORT2_REGISTER_FUNC_ADDR (0)
 
+#define CPX_QPI_PORT3_REGISTER_DEV_ADDR  (14)
+#define CPX_QPI_PORT3_REGISTER_FUNC_ADDR (4)
+#define CPX_QPI_PORT4_REGISTER_DEV_ADDR  (15)
+#define CPX_QPI_PORT4_REGISTER_FUNC_ADDR (4)
+#define CPX_QPI_PORT5_REGISTER_DEV_ADDR  (16)
+#define CPX_QPI_PORT5_REGISTER_FUNC_ADDR (4)
+
 #define QPI_PORT0_MISC_REGISTER_FUNC_ADDR (0)
 #define QPI_PORT1_MISC_REGISTER_FUNC_ADDR (0)
 #define QPI_PORT2_MISC_REGISTER_FUNC_ADDR (0)
+
+constexpr auto SKX_M3UPI_PORT0_REGISTER_DEV_ADDR = (0x12);
+constexpr auto SKX_M3UPI_PORT0_REGISTER_FUNC_ADDR = (1);
+constexpr auto SKX_M3UPI_PORT1_REGISTER_DEV_ADDR = (0x12);
+constexpr auto SKX_M3UPI_PORT1_REGISTER_FUNC_ADDR = (2);
+constexpr auto SKX_M3UPI_PORT2_REGISTER_DEV_ADDR = (0x12);
+constexpr auto SKX_M3UPI_PORT2_REGISTER_FUNC_ADDR = (5);
+
+constexpr auto CPX_M3UPI_PORT0_REGISTER_DEV_ADDR = (0x12);
+constexpr auto CPX_M3UPI_PORT0_REGISTER_FUNC_ADDR = (1);
+constexpr auto CPX_M3UPI_PORT1_REGISTER_DEV_ADDR = (0x12);
+constexpr auto CPX_M3UPI_PORT1_REGISTER_FUNC_ADDR = (2);
+constexpr auto CPX_M3UPI_PORT2_REGISTER_DEV_ADDR = (0x13);
+constexpr auto CPX_M3UPI_PORT2_REGISTER_FUNC_ADDR = (1);
+constexpr auto CPX_M3UPI_PORT3_REGISTER_DEV_ADDR = (0x13);
+constexpr auto CPX_M3UPI_PORT3_REGISTER_FUNC_ADDR = (2);
+constexpr auto CPX_M3UPI_PORT4_REGISTER_DEV_ADDR = (0x14);
+constexpr auto CPX_M3UPI_PORT4_REGISTER_FUNC_ADDR = (1);
+constexpr auto CPX_M3UPI_PORT5_REGISTER_DEV_ADDR = (0x14);
+constexpr auto CPX_M3UPI_PORT5_REGISTER_FUNC_ADDR = (2);
 
 #define SKX_M2M_0_REGISTER_DEV_ADDR  (8)
 #define SKX_M2M_0_REGISTER_FUNC_ADDR (0)
@@ -681,6 +715,20 @@ struct BecktonUncorePMUCNTCTLRegister
 #define M2M_PCI_PMON_CTR1_ADDR (0x208)
 #define M2M_PCI_PMON_CTR2_ADDR (0x210)
 #define M2M_PCI_PMON_CTR3_ADDR (0x218)
+
+constexpr auto M3UPI_PCI_PMON_BOX_CTL_ADDR = (0xF4);
+
+constexpr auto M3UPI_PCI_PMON_CTL0_ADDR = (0xD8);
+constexpr auto M3UPI_PCI_PMON_CTL1_ADDR = (0xDC);
+constexpr auto M3UPI_PCI_PMON_CTL2_ADDR = (0xE0);
+
+constexpr auto M3UPI_PCI_PMON_CTR0_ADDR = (0xA0);
+constexpr auto M3UPI_PCI_PMON_CTR1_ADDR = (0xA8);
+constexpr auto M3UPI_PCI_PMON_CTR2_ADDR = (0xB0);
+
+constexpr auto MSR_UNCORE_PMON_GLOBAL_CTL = 0x700;
+
+constexpr auto IVT_MSR_UNCORE_PMON_GLOBAL_CTL = 0x0C00;
 
 #define PCM_INVALID_DEV_ADDR (~(uint32)0UL)
 #define PCM_INVALID_FUNC_ADDR (~(uint32)0UL)
@@ -717,6 +765,13 @@ struct BecktonUncorePMUCNTCTLRegister
 #define UBOX_MSR_PMON_CTL1_ADDR (0x706)
 #define UBOX_MSR_PMON_CTR0_ADDR (0x709)
 #define UBOX_MSR_PMON_CTR1_ADDR (0x70a)
+
+constexpr auto JKTIVT_UCLK_FIXED_CTR_ADDR = (0x0C09);
+constexpr auto JKTIVT_UCLK_FIXED_CTL_ADDR = (0x0C08);
+constexpr auto JKTIVT_UBOX_MSR_PMON_CTL0_ADDR = (0x0C10);
+constexpr auto JKTIVT_UBOX_MSR_PMON_CTL1_ADDR = (0x0C11);
+constexpr auto JKTIVT_UBOX_MSR_PMON_CTR0_ADDR = (0x0C16);
+constexpr auto JKTIVT_UBOX_MSR_PMON_CTR1_ADDR = (0x0C17);
 
 #define JKTIVT_PCU_MSR_PMON_CTR3_ADDR (0x0C39)
 #define JKTIVT_PCU_MSR_PMON_CTR2_ADDR (0x0C38)
@@ -940,6 +995,8 @@ struct IIOPMUCNTCTLRegister
         uint64 value;
     };
     IIOPMUCNTCTLRegister() : value(0) { }
+    IIOPMUCNTCTLRegister(const uint64 v) : value(v) { }
+    operator uint64() { return value; }
 };
 
 #define MSR_PACKAGE_THERM_STATUS (0x01B1)
@@ -965,11 +1022,13 @@ struct IIOPMUCNTCTLRegister
 
 #define MSR_TSX_FORCE_ABORT (0x10f)
 
-#ifdef _MSC_VER
-#include <windows.h>
 // data structure for converting two uint32s <-> uin64
 union cvt_ds
 {
+#ifndef _MSC_VER
+    typedef uint64 UINT64;
+    typedef uint32 DWORD;
+#endif
     UINT64 ui64;
     struct
     {
@@ -977,8 +1036,6 @@ union cvt_ds
         DWORD high;
     } ui32;
 };
-
-#endif
 
 struct MCFGRecord
 {
@@ -1017,5 +1074,7 @@ struct MCFGHeader
         std::cout << "Header: length=" << length << " nrecords=" << nrecords() << "\n";
     }
 };
+
+} // namespace pcm
 
 #endif

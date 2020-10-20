@@ -11,6 +11,7 @@ Current Build Status
 - Linux and OSX: [![Build Status](https://travis-ci.com/opcm/pcm.svg?branch=master)](https://travis-ci.com/opcm/pcm)
 - Windows: [![Build status](https://ci.appveyor.com/api/projects/status/github/opcm/pcm?branch=master&svg=true)](https://ci.appveyor.com/project/opcm/pcm)
 - FreeBSD: [![Build Status](https://api.cirrus-ci.com/github/opcm/pcm.svg)](https://cirrus-ci.com/github/opcm/pcm)
+- Docker Hub: [![Build status](https://img.shields.io/docker/cloud/build/opcm/pcm.svg)](https://github.com/opcm/pcm/blob/master/DOCKER_README.md) [![pulls](https://img.shields.io/docker/pulls/opcm/pcm.svg)](https://github.com/opcm/pcm/blob/master/DOCKER_README.md)
 
 --------------------------------------------------------------------------------
 PCM Tools
@@ -20,7 +21,7 @@ PCM provides a number of command-line utilities for real-time monitoring:
 
 - **pcm** : basic processor monitoring utility (instructions per cycle, core frequency (including Intel(r) Turbo Boost Technology), memory and Intel(r) Quick Path Interconnect bandwidth, local and remote memory bandwidth, cache misses, core and CPU package sleep C-state residency, core and CPU package thermal headroom, cache utilization, CPU and memory energy consumption)
 ![pcm output](https://raw.githubusercontent.com/wiki/opcm/pcm/pcm.x.jpg)
-- **pcm-sensor-server** : pcm collector exposing metrics over http in JSON or Prometheus (text based) format
+- **pcm-sensor-server** : pcm collector exposing metrics over http in JSON or Prometheus (exporter text based) format. Also available as a [docker container](https://github.com/opcm/pcm/blob/master/DOCKER_README.md)
 - **pcm-memory** : monitor memory bandwidth (per-channel and per-DRAM DIMM rank)
 ![pcm-memory output](https://raw.githubusercontent.com/wiki/opcm/pcm/pcm-memory.x.JPG)
 - **pcm-latency** : monitor L1 cache miss and DDR/PMM memory latency
@@ -31,6 +32,7 @@ PCM provides a number of command-line utilities for real-time monitoring:
 - **pcm-power** : monitor sleep and energy states of processor, Intel(r) Quick Path Interconnect, DRAM memory, reasons of CPU frequency throttling and other energy-related metrics
 - **pcm-tsx**: monitor performance metrics for Intel(r) Transactional Synchronization Extensions
 - **pcm-core** and **pmu-query**: query and monitor arbitrary processor core events
+- **pcm-raw**(NEW): [program arbitrary **core** and **uncore** events by specifying raw register event ID encoding](https://github.com/opcm/pcm/blob/master/PCM_RAW_README.md)
 - **pcm-bw-histogram**: collect memory bandwidth utilization histogram
 
 Graphical front ends:
@@ -61,10 +63,22 @@ Downloading Pre-Compiled PCM Tools
 - Docker: see [instructions on how to use pcm-sensor-server pre-compiled container from docker hub](https://github.com/opcm/pcm/blob/master/DOCKER_README.md).
 
 --------------------------------------------------------------------------------
+Frequently Asked Questions (FAQ)
+--------------------------------------------------------------------------------
+
+PCM's frequently asked questions (FAQ) are located [here](https://github.com/opcm/pcm/blob/master/FAQ.md).
+
+--------------------------------------------------------------------------------
 PCM API documentation
 --------------------------------------------------------------------------------
 
 PCM API documentation is embedded in the source code and can be generated into html format from source using Doxygen (www.doxygen.org).
+
+--------------------------------------------------------------------------------
+PCM environment variables
+--------------------------------------------------------------------------------
+
+The list of PCM environment variables is located [here](https://github.com/opcm/pcm/blob/master/ENVVAR_README.md)
 
 --------------------------------------------------------------------------------
 Custom compilation options
