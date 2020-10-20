@@ -5,7 +5,7 @@
 
 EXE = pcm.x pcm-numa.x pcm-latency.x pcm-power.x pcm-sensor.x pcm-msr.x pcm-memory.x pcm-tsx.x pcm-pcie.x pcm-core.x pcm-iio.x pcm-lspci.x pcm-pcicfg.x
 EXE += pcm-mmio.x
-INSTALLDIR = /home/amaity/Desktop/ltephygpp/LIBPCM
+# INSTALLDIR = /home/amaity/Desktop/ltephygpp/LIBPCM
 UNAME:=$(shell uname)
 
 ifeq ($(UNAME), Linux)
@@ -73,8 +73,8 @@ klocwork: $(EXE)
 -include $(OBJS:.o=.d)
 libPCM.a: $(COMMON_OBJS)
 	ar -rcs $@ $^
-	cp pcm_c_api.h $(INSTALLDIR)
-	cp libPCM.a $(INSTALLDIR)
+	# cp pcm_c_api.h $(INSTALLDIR)
+	# cp libPCM.a $(INSTALLDIR)
 
 %.x: %.o $(COMMON_OBJS)
 	$(CXX) -o $@ $^ $(LIB)
