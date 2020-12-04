@@ -605,6 +605,9 @@ class PCM_API PCM
 
     bool forceRTMAbortMode;
 
+    bool vm = false;
+    bool linux_arch_perfmon = false;
+
 public:
     enum { MAX_C_STATE = 10 }; // max C-state on Intel architecture
 
@@ -1240,6 +1243,7 @@ public:
         SKL_UY = 78,
         KBL = 158,
         KBL_1 = 142,
+        CML = 166,
         ICL = 126,
         BDX = 79,
         KNL = 87,

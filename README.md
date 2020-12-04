@@ -2,6 +2,8 @@
 Processor Counter Monitor (PCM)
 --------------------------------------------------------------------------------
 
+[PCM Tools](#pcm-tools) | [Building PCM](#building-pcm-tools) | [Downloading Pre-Compiled PCM](#downloading-pre-compiled-pcm-tools) | [FAQ](#frequently-asked-questions-faq) | [API Documentation](#pcm-api-documentation) | [Environment Variables](#pcm-environment-variables) | [Compilation Options](#custom-compilation-options)
+
 Processor Counter Monitor (PCM) is an application programming interface (API) and a set of tools based on the API to monitor performance and energy metrics of Intel&reg; Core&trade;, Xeon&reg;, Atom&trade; and Xeon Phi&trade; processors. PCM works on Linux, Windows, Mac OS X, FreeBSD and DragonFlyBSD operating systems.
 
 --------------------------------------------------------------------------------
@@ -58,7 +60,7 @@ Building PCM Tools
 Downloading Pre-Compiled PCM Tools
 --------------------------------------------------------------------------------
 
-- Linux: precompiled RPMs (binary and source) are available [here](https://download.opensuse.org/repositories/home:/opcm/)
+- Linux: precompiled RPMs (binary and source) are available [here](https://download.opensuse.org/repositories/home:/opcm/), a DEB binary package can be generated from an RPM using the [Alien tool](https://wiki.debian.org/Alien)
 - Windows: download PCM binaries as [appveyor build service](https://ci.appveyor.com/project/opcm/pcm/history) artifacts and required Visual C++ Redistributable from [www.microsoft.com](https://www.microsoft.com/en-us/download/details.aspx?id=48145). Additional drivers are needed, see [WINDOWS_HOWTO.md](https://github.com/opcm/pcm/blob/master/WINDOWS_HOWTO.md).
 - Docker: see [instructions on how to use pcm-sensor-server pre-compiled container from docker hub](https://github.com/opcm/pcm/blob/master/DOCKER_README.md).
 
