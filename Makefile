@@ -4,25 +4,17 @@
 #
 
 EXE = pcm.x pcm-numa.x pcm-latency.x pcm-power.x pcm-sensor.x pcm-msr.x pcm-memory.x pcm-tsx.x pcm-pcie.x pcm-core.x pcm-iio.x pcm-lspci.x pcm-pcicfg.x
-<<<<<<< HEAD
 EXE += pcm-mmio.x
-
 EXE += c_example.x
-
 EXE += pcm-raw.x
-
-=======
-INSTALLDIR = /home/amaity/Desktop/ltephygpp/LIBPCM
->>>>>>> 4b87542533c3d319e3e8bfaa2a0f7adc90aa0ac6
 UNAME:=$(shell uname)
 
 ifeq ($(UNAME), Linux)
 EXE += daemon-binaries
 endif
 
-<<<<<<< HEAD
+
 CXXFLAGS += -Wall -g -O3 -Wno-unknown-pragmas -std=c++11 -fPIC
-=======
 # all: $(EXE) lib ORIGINAL CODE
 all: lib
 
@@ -34,8 +26,6 @@ daemon-binaries:
 
 klocwork: $(EXE)
 
-CXXFLAGS += -Wall -g -O3 -Wno-unknown-pragmas
->>>>>>> 4b87542533c3d319e3e8bfaa2a0f7adc90aa0ac6
 
 # uncomment if your Linux kernel supports access to /dev/mem from user space
 # CXXFLAGS += -DPCM_USE_PCI_MM_LINUX
@@ -87,13 +77,9 @@ klocwork: $(EXE)
 -include $(OBJS:.o=.d)
 libPCM.a: $(COMMON_OBJS)
 	ar -rcs $@ $^
-<<<<<<< HEAD
 	# cp pcm_c_api.h $(INSTALLDIR)
 	# cp libPCM.a $(INSTALLDIR)
-=======
-	cp pcm_c_api.h $(INSTALLDIR)
-	cp libPCM.a $(INSTALLDIR)
->>>>>>> 4b87542533c3d319e3e8bfaa2a0f7adc90aa0ac6
+
 
 %.x: %.o $(COMMON_OBJS)
 	$(CXX) $(LDFLAGS) -o $@ $^ $(LIB)
