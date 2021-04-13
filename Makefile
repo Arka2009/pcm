@@ -14,19 +14,8 @@ ifeq ($(UNAME), Linux)
 EXE += daemon-binaries
 endif
 
-
-CXXFLAGS += -Wall -g -O3 -Wno-unknown-pragmas -std=c++11 -fPIC
-# all: $(EXE) lib ORIGINAL CODE
-all: lib
-
-lib: libPCM.a
-
-daemon-binaries:
-	make -C daemon/daemon/Debug
-	make -C daemon/client/Debug
-
-klocwork: $(EXE)
-
+CFLAGS += -Wall -g -O3 -Wno-unknown-pragmas -fPIC
+CXXFLAGS += $(CFLAGS) -std=c++11
 
 # uncomment if your Linux kernel supports access to /dev/mem from user space
 # CXXFLAGS += -DPCM_USE_PCI_MM_LINUX
@@ -58,7 +47,7 @@ CXX=c++
 LIB= -lpthread -lc++
 endif
 
-COMMON_OBJS = msr.o cpucounters.o pci.o mmio.o client_bw.o utils.o topology.o dashboard.o debug.o threadpool.o
+COMMON_OBJS = msr.o cpucounters.o pci.o mmio.o client_bw.o utils.o topology.o dashboard.o debug.o threadpool.o resctrl.o
 EXE_OBJS = $(EXE:.x=.o)
 OBJS = $(COMMON_OBJS) $(EXE_OBJS)
 
@@ -94,10 +83,10 @@ libpcm.so: $(COMMON_OBJS) pcm-core.o
 	$(CXX) $(LDFLAGS) $(CXXFLAGS) -DPCM_SILENT -shared $^ $(LIB) -o $@
 
 c_example.x: c_example.c libpcm.so
-	$(CC) -DPCM_DYNAMIC_LIB $< -ldl -Wl,-rpath,$(shell pwd) -o $@
+	$(CC) $(CFLAGS) -DPCM_DYNAMIC_LIB $< -ldl -Wl,-rpath,$(shell pwd) -o $@
 
 c_example_shlib.x: c_example.c libpcm.so
-	$(CC) $< -L./ -Wl,-rpath,$(shell pwd) -lpcm -o $@
+	$(CC) $(CFLAGS) $< -L./ -Wl,-rpath,$(shell pwd) -lpcm -o $@
 
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -c $*.cpp -o $*.o
@@ -117,15 +106,16 @@ c_example_shlib.x: c_example.c libpcm.so
 	@rm -f $*.d.tmp
 
 memoptest.x: memoptest.cpp
-	g++ -Wall -g -O0 -std=c++11 memoptest.cpp -o memoptest.x
+	$(CXX) -Wall -g -O0 -std=c++11 memoptest.cpp -o memoptest.x
 
 dashboardtest.x: dashboardtest.cpp $(COMMON_OBJS)
 	$(CXX) -o $@ $^ $(LIB)
 
-nice:
-	uncrustify --replace -c ~/uncrustify.cfg *.cpp *.h WinMSRDriver/Win7/*.h WinMSRDriver/Win7/*.c WinMSRDriver/WinXP/*.h WinMSRDriver/WinXP/*.c  PCM_Win/*.h PCM_Win/*.cpp  
-
 prefix=/usr
+
+ifneq ($(DESTDIR),)
+	prefix=${DESTDIR}/usr
+endif
 
 install: all
 	mkdir -p                                     ${prefix}/sbin/

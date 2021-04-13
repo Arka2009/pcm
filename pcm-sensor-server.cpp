@@ -192,8 +192,7 @@ std::string read_ndctl_info( std::ofstream& logfile ) {
         exit(50);
     }
     std::stringstream ndctl;
-    int pid;
-    if ( (pid = fork()) == 0 ) {
+    if ( fork() == 0 ) {
         // child, writes to pipe, close read-end
         close( pipes[0] );
         dup2( pipes[1], fileno(stdout) );
@@ -288,21 +287,21 @@ public:
     CoreCounterState const getCoreCounter( std::shared_ptr<Aggregator> ag, uint32 tid ) const {
         CoreCounterState ccs;
         if ( nullptr == ag.get() )
-            return std::move( ccs );
+            return ccs;
         return std::move( ag->coreCounterStates()[tid] );
     }
 
     SocketCounterState const getSocketCounter( std::shared_ptr<Aggregator> ag, uint32 sid ) const {
         SocketCounterState socs;
         if ( nullptr == ag.get() )
-            return std::move( socs );
+            return socs;
         return std::move( ag->socketCounterStates()[sid] );
     }
 
     SystemCounterState getSystemCounter( std::shared_ptr<Aggregator> ag ) const {
         SystemCounterState sycs;
         if ( nullptr == ag.get() )
-            return std::move( sycs );
+            return sycs;
         return std::move( ag->systemCounterState() );
     }
 
@@ -548,21 +547,21 @@ public:
     CoreCounterState const getCoreCounter( std::shared_ptr<Aggregator> ag, uint32 tid ) const {
         CoreCounterState ccs;
         if ( nullptr == ag.get() )
-            return std::move( ccs );
+            return ccs;
         return std::move( ag->coreCounterStates()[tid] );
     }
 
     SocketCounterState const getSocketCounter( std::shared_ptr<Aggregator> ag, uint32 sid ) const {
         SocketCounterState socs;
         if ( nullptr == ag.get() )
-            return std::move( socs );
+            return socs;
         return std::move( ag->socketCounterStates()[sid] );
     }
 
     SystemCounterState getSystemCounter( std::shared_ptr<Aggregator> ag ) const {
         SystemCounterState sycs;
         if ( nullptr == ag.get() )
-            return std::move( sycs );
+            return sycs;
         return std::move( ag->systemCounterState() );
     }
 
@@ -849,7 +848,7 @@ protected:
 #endif
             bytesSent= ::send( socketFD_, (void*)outputBuffer_, bytesToSend, MSG_NOSIGNAL );
             if ( -1 == bytesSent ) {
-                strerror( errno );
+                std::cerr << strerror( errno ) << "\n";
                 return traits_type::eof();
             }
 #if defined (USE_SSL)
@@ -883,7 +882,7 @@ protected:
         return bytesSent;
     }
 
-    virtual int sync() {
+    int sync() override {
         int_type ret = writeToSocket();
         if ( traits_type::eof() == ret )
             return -1;
@@ -1358,9 +1357,7 @@ public:
             if ( prop.name_ == str )
                 return prop.type_;
         }
-        if ( str.find( "X-", 0 ) != std::string::npos )
-            return CustomHeader;
-        throw std::runtime_error( "headerType: Headername not found" );
+        return CustomHeader;
     }
     static char listSeparatorChar( std::string const & headerName ) {
         static HTTPHeaderProperties props;
@@ -1368,9 +1365,7 @@ public:
             if ( prop.name_ == headerName )
                 return prop.listSeparatorChar_;
         }
-        if ( headerName.find( "X-", 0 ) != std::string::npos )
-            return ',';
-        throw std::runtime_error( "listSeparatorChar: Headername not found" );
+        return ',';
     }
     static std::string const& headerTypeAsString( enum HeaderType ht ) {
         static HTTPHeaderProperties props;
@@ -1522,7 +1517,7 @@ public:
                 authority = fullURL.substr( authorityPos+2, authorityEndPos - (authorityPos + 2) );
                 DBG( 3, "authority: '", authority, "'" );
 
-                size_t atPos = authority.find( '@' );
+                const size_t atPos = authority.find( '@' );
                 bool atFound = (atPos != std::string::npos);
                 if ( atFound ) {
                     if ( atPos == 0 )
@@ -1551,8 +1546,7 @@ public:
                     url.hasUser_ = true;
                     // delete user/pass including the at
                     authority.erase( 0, atPos+1 );
-                } else
-                    atPos = 0;
+                }
 
                 // Instead of all the logic it is easier to work on substrings
 
@@ -2653,7 +2647,7 @@ void HTTPServer::run() {
         socklen_t sa_len = sizeof( struct sockaddr_in );
         int retval = ::accept( serverSocket_, (struct sockaddr*)&clientAddress, &sa_len );
         if ( -1 == retval ) {
-            ::strerror( errno );
+            std::cerr << ::strerror( errno ) << "\n";
             continue;
         }
         clientSocketFD = retval;
@@ -2663,7 +2657,7 @@ void HTTPServer::run() {
         ::memset( ipbuf, 0, 16 );
         char const * resbuf = ::inet_ntop( AF_INET, &(clientAddress.sin_addr), ipbuf, INET_ADDRSTRLEN );
         if ( nullptr == resbuf ) {
-            ::strerror( errno );
+            std::cerr << ::strerror( errno ) << "\n";
             ::close( clientSocketFD );
             continue;
         }
@@ -2722,7 +2716,7 @@ public:
     }
 
 private:
-    SSL_CTX* sslCTX_;
+    SSL_CTX* sslCTX_ = nullptr;
     std::string certificateFile_;
     std::string privateKeyFile_;
 };
@@ -2740,7 +2734,7 @@ void HTTPSServer::run() {
         socklen_t sa_len = sizeof( struct sockaddr_in );
         int retval = ::accept( serverSocket_, (struct sockaddr*)&clientAddress, &sa_len );
         if ( -1 == retval ) {
-            ::strerror( errno );
+            std::cerr << strerror( errno ) << "\n";
             continue;
         }
         clientSocketFD = retval;
@@ -2758,7 +2752,7 @@ void HTTPSServer::run() {
         memset( ipbuf, 0, 16 );
         char const * resbuf = ::inet_ntop( AF_INET, &(clientAddress.sin_addr), ipbuf, INET_ADDRSTRLEN );
         if ( nullptr == resbuf ) {
-            ::strerror( errno );
+            std::cerr << strerror( errno ) << "\n";
             ::close( clientSocketFD );
             continue;
         }

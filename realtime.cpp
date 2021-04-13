@@ -67,6 +67,7 @@ template <class DS>
 void Memory_intensive_task(DS & ds)
 {
     cout << "Mem task\n";
+    // cppcheck-suppress ignoredReturnValue
     std::find(ds.begin(), ds.end(), ds.size());
 }
 
@@ -79,9 +80,10 @@ template <class DS>
 void measure(DS & ds, size_t repeat, size_t nelements)
 {
     SystemCounterState before_sstate, after_sstate;
-    double before_ts, after_ts;
+    double before_ts = 0.0, after_ts;
 
     // warm up
+    // cppcheck-suppress ignoredReturnValue
     std::find(ds.begin(), ds.end(), nelements);
 
     double before1_ts;
@@ -99,6 +101,7 @@ void measure(DS & ds, size_t repeat, size_t nelements)
     }
 #endif
 
+    // cppcheck-suppress ignoredReturnValue
     for (int j = 0; j < repeat; ++j) std::find(ds.begin(), ds.end(), nelements);
 
     // stop measuring
@@ -143,8 +146,8 @@ typedef int T;
 
 struct T
 {
-    int key[1];
-    int data[15];
+    int key[1] = { 0 };
+    int data[15] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };;
 
     T() { }
     T(int a) { key[0] = a; }
