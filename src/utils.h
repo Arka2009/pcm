@@ -19,6 +19,7 @@
 #include <chrono>
 #include <math.h>
 #include <assert.h>
+#include <unistd.h>
 
 #if defined(__FreeBSD__) || (defined(__DragonFly__) && __DragonFly_version >= 400707)
 #include <pthread_np.h>
