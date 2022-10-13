@@ -4275,16 +4275,15 @@ PCM::ErrorCode PCM::programCoreCounters(const int i /* core */,
             value |= (1ULL << j); // enable all custom counters (if > 4)
         }
 
-        if (core_global_ctrl_value)
-        {
-            // std::cout << std::hex << "core_global_ctrl_value = " << core_global_ctrl_value << "\n"
-            //           << "value = " << value << "\n";
-            assert(core_global_ctrl_value == value);
-        }
-        else
-        {
-            core_global_ctrl_value = value;
-        }
+        // if (core_global_ctrl_value)
+        // {
+        //     assert(core_global_ctrl_value == value);
+        // }
+        // else
+        // {
+        //     core_global_ctrl_value = value;
+        // }
+        core_global_ctrl_value = value;
 
         MSR[i]->write(IA32_PERF_GLOBAL_OVF_CTRL, value);
         MSR[i]->write(IA32_CR_PERF_GLOBAL_CTRL, value);
