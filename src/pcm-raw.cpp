@@ -24,6 +24,7 @@
 #include <bitset>
 #include <regex>
 #include <unordered_map>
+#include <atomic>
 #include "cpucounters.h"
 #include "utils.h"
 
@@ -110,6 +111,81 @@ void printEvent(const std::string & pmuName, const bool fixed, const PCM::RawEve
         ", 0x" << config.first[4] <<
         ", 0x" << config.first[5] <<
         "}\n" << dec;
+}
+
+static std::atomic_bool stop_main_loop;
+
+void sigTERM_handler(int signum) {
+    std::cerr << "[PCM]: Received SIGTERM\n";
+    stop_main_loop = true;
+}
+
+void sigTERM_handler_post_cleanup() {
+    std::cerr << "[PCM]: Cleaning up post SIGTERM\n";
+    if (PCM::getInstance()->isBlocked()) {
+        return;
+    } else {
+        exit_cleanup();
+        _exit(EXIT_SUCCESS);
+    }
+}
+void set_signal_handlers_modified(void) {
+    stop_main_loop = false;
+    if (atexit(exit_cleanup) != 0)
+    {
+        std::cerr << "ERROR: Failed to install exit handler.\n";
+        return;
+    }
+#ifndef _MSC_VER
+    struct sigaction saINT, saTERM, saHUP, saUSR, saSTOP, saCONT;
+    // install handlers that interrupt execution
+    saINT.sa_handler = sigINT_handler;
+    sigemptyset(&saINT.sa_mask);
+    saINT.sa_flags = SA_RESTART;
+    sigaction(SIGINT, &saINT, NULL);
+    sigaction(SIGQUIT, &saINT, NULL);
+    sigaction(SIGABRT, &saINT, NULL);
+    sigaction(SIGSEGV, &saINT, NULL);
+
+    saINT.sa_flags = SA_RESTART | SA_NOCLDSTOP;
+    sigaction(SIGCHLD, &saINT, NULL); // get there is our child exits. do nothing if it stopped/continued
+
+    // Handle the Terminate signal issues to parent process
+    saTERM.sa_handler = sigTERM_handler;
+    sigemptyset(&saTERM.sa_mask);
+    saTERM.sa_flags = SA_RESTART;
+    sigaction(SIGTERM, &saTERM, NULL);
+
+    // install SIGHUP handler to restart
+    saHUP.sa_handler = sigHUP_handler;
+    sigemptyset(&saHUP.sa_mask);
+    saHUP.sa_flags = SA_RESTART;
+    sigaction(SIGHUP, &saHUP, NULL);
+
+    // install SIGHUP handler to restart
+    saUSR.sa_handler = sigUSR_handler;
+    sigemptyset(&saUSR.sa_mask);
+    saUSR.sa_flags = SA_RESTART;
+    sigaction(SIGUSR1, &saUSR, NULL);
+    sigaction(SIGUSR2, &saUSR, NULL);
+
+    // install SIGSTOP handler: pause/resume
+    saSTOP.sa_handler = sigSTOP_handler;
+    sigemptyset(&saSTOP.sa_mask);
+    saSTOP.sa_flags = SA_RESTART;
+    sigaction(SIGSTOP, &saSTOP, NULL);
+    sigaction(SIGTSTP, &saSTOP, NULL);
+    sigaction(SIGTTIN, &saSTOP, NULL);
+    sigaction(SIGTTOU, &saSTOP, NULL);
+
+    // install SIGCONT & SIGALRM handler
+    saCONT.sa_handler = sigCONT_handler;
+    sigemptyset(&saCONT.sa_mask);
+    saCONT.sa_flags = SA_RESTART;
+    sigaction(SIGCONT, &saCONT, NULL);
+    sigaction(SIGALRM, &saCONT, NULL);
+#endif
+
 }
 
 void lowerCase(std::string & str)
@@ -2325,7 +2401,7 @@ int mainThrows(int argc, char * argv[])
     check_and_set_silent(argc, argv, nullStream2);
 #endif
 
-    set_signal_handlers();
+    set_signal_handlers_modified();
     set_real_time_priority(true);
 
     cerr << "\n";
@@ -2690,6 +2766,10 @@ int mainThrows(int argc, char * argv[])
          if (m->isBlocked()) {
              // in case PCM was blocked after spawning child application: break monitoring loop here
              return false;
+         }
+         if (stop_main_loop) {
+            sigTERM_handler_post_cleanup();
+            return false;
          }
          return true;
     });

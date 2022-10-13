@@ -31,5 +31,6 @@ latex/
 *.vcxproj.user
 .vs/
 .idea/
-build
 src/simdjson
+.vscode/
+build/

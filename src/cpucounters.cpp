@@ -4277,6 +4277,8 @@ PCM::ErrorCode PCM::programCoreCounters(const int i /* core */,
 
         if (core_global_ctrl_value)
         {
+            // std::cout << std::hex << "core_global_ctrl_value = " << core_global_ctrl_value << "\n"
+            //           << "value = " << value << "\n";
             assert(core_global_ctrl_value == value);
         }
         else
